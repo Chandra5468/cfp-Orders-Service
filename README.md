@@ -70,3 +70,24 @@ Record 2: order_id, product_id (Vanilla Cake), quantity (1), unit_price (e.g., 2
   "created_at": ISODate,
   "updated_at": ISODate
 }
+
+r := chi.NewRouter()
+
+// Public route - no middleware
+r.Post("/v1/api/orders/create", h.CreateAOrder)
+
+// Public route - no middleware
+r.Get("/v1/api/orders/{id}", h.GetOrder)
+
+// Middleware just for complaint registration
+r.With(jwtMiddleware, orderOwnershipMiddleware).Post("/v1/api/orders/register/complaint", h.RegisterComplaint)
+
+// Admin route - attach admin-specific middleware
+r.With(AdminAuthMiddleware).Patch("/v1/api/admin/orders/update/status", h.UpdateOrderStatus)
+
+
+
+
+router.With(func(next http.Handler) http.Handler {
+        return YourOrderOwnershipMiddleware(h.mdbStore, next)  // You can choose store or mdbStore here
+    }).Post("/v1/api/orders/register/complaint", h.RegisterComplaint)

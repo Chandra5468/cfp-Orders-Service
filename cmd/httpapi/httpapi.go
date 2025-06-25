@@ -12,20 +12,23 @@ import (
 
 	v1 "github.com/Chandra5468/cfp-Products-Service/internal/handlers/http/v1"
 	"github.com/Chandra5468/cfp-Products-Service/internal/middleware"
-	"github.com/Chandra5468/cfp-Products-Service/internal/services/database/postgresql/orders"
+	mdbDatastore "github.com/Chandra5468/cfp-Products-Service/internal/services/database/mongodb/orders"
+	psqlDatastore "github.com/Chandra5468/cfp-Products-Service/internal/services/database/postgresql/orders"
 	"github.com/go-chi/chi/v5"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type APIServer struct {
 	addr string
 	db   *sql.DB
-	// mdb In future if we want to migrate for unstructred database use mongo conn here
+	mdb  *mongo.Client
 }
 
-func NewApiServer(httpAddress string, db *sql.DB) *APIServer {
+func NewApiServer(httpAddress string, db *sql.DB, mdbClient *mongo.Client) *APIServer {
 	return &APIServer{
 		addr: httpAddress,
 		db:   db,
+		mdb:  mdbClient,
 	}
 }
 
@@ -38,8 +41,10 @@ func (a *APIServer) RUN() {
 
 	// router.Use(middleware.Logger
 	newHandler := middleware.CorsHandler(router)
-	ordersStore := orders.NewStore(a.db)        // call services first (from postgresql database)
-	ordersHandler := v1.NewHandler(ordersStore) // assign those services to handler. Internally implements interfaces. So, if services come from mongo in future they need to implement those services
+
+	ordersStore := psqlDatastore.NewStore(a.db) // call services first (from postgresql database)
+	complaintsStore := mdbDatastore.NewStore(a.mdb)
+	ordersHandler := v1.NewHandler(ordersStore, complaintsStore) // assign those services to handler. Internally implements interfaces. So, if services come from mongo in future they need to implement those services
 	ordersHandler.RegisterRoutes(router)
 
 	server := &http.Server{
@@ -70,6 +75,13 @@ func (a *APIServer) RUN() {
 		slog.Error("Error closing PostgreSQL", slog.String("error", err.Error()))
 	} else {
 		slog.Info("PostgreSQL database closed successfully")
+	}
+	slog.Info("message", "closing", "mongodatabase")
+	err = a.mdb.Disconnect(context.TODO())
+	if err != nil {
+		slog.Error("Error closing MongoDB", slog.String("error", err.Error()))
+	} else {
+		slog.Info("Mongo database closed successfully")
 	}
 	err2 := server.Shutdown(ctx)
 
