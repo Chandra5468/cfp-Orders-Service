@@ -18,7 +18,7 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) CreateAOrder(orderDetails *types.CreateAOrder, totalBill float32, status string) *uuid.UUID {
-	query := `insert into orders(user_id, location, total_amount, status) values ($1,$2,$3,$4)`
+	query := `insert into orders(user_id, location, total_amount, status) values ($1,$2,$3,$4) returning id`
 	var id uuid.UUID
 	err := s.db.QueryRow(query, &orderDetails.UserId, &orderDetails.Location, &totalBill, &status).Scan(&id)
 	if err != nil {

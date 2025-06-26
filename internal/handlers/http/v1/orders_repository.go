@@ -77,7 +77,7 @@ func (h *Handler) createAOrder(w http.ResponseWriter, r *http.Request) {
 	wg := &sync.WaitGroup{}
 
 	allProducts := []types.PurchasedProduct{}
-
+	var mu sync.Mutex
 	for _, item := range orderDetails.Items {
 		if item.ProductId == uuid.Nil || item.Quantity == 0 {
 			responses.WriteJson(w, http.StatusBadRequest, "product id or quanity is missing")
@@ -90,7 +90,9 @@ func (h *Handler) createAOrder(w http.ResponseWriter, r *http.Request) {
 				// calling products microservice
 				purchasedProducts := products.ValidateCart(item)
 				if purchasedProducts != nil {
+					mu.Lock()
 					allProducts = append(allProducts, *purchasedProducts)
+					mu.Unlock()
 				}
 			}(wg, item)
 		}
@@ -120,7 +122,7 @@ func (h *Handler) createAOrder(w http.ResponseWriter, r *http.Request) {
 			totalBill += eachPurchase.TotalAmount
 		}
 	}
-
+	userInvoice.TotalAmount = totalBill
 	userInvoice.Message = "If there are less quantity of products. We are sorry as we added as per product quantity available"
 
 	orderId := h.store.CreateAOrder(orderDetails, totalBill, "processing")
