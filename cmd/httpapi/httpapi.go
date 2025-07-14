@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	grpcclient "github.com/Chandra5468/cfp-Products-Service/cmd/grpcClient"
 	v1 "github.com/Chandra5468/cfp-Products-Service/internal/handlers/http/v1"
 	"github.com/Chandra5468/cfp-Products-Service/internal/middleware"
 	mdbDatastore "github.com/Chandra5468/cfp-Products-Service/internal/services/database/mongodb/orders"
@@ -44,7 +45,9 @@ func (a *APIServer) RUN() {
 
 	ordersStore := psqlDatastore.NewStore(a.db) // call services first (from postgresql database)
 	complaintsStore := mdbDatastore.NewStore(a.mdb)
-	ordersHandler := v1.NewHandler(ordersStore, complaintsStore) // assign those services to handler. Internally implements interfaces. So, if services come from mongo in future they need to implement those services
+	// Grpc Conn
+	conn := grpcclient.NewGrpcClient("localhost:9002")
+	ordersHandler := v1.NewHandler(ordersStore, complaintsStore, conn) // assign those services to handler. Internally implements interfaces. So, if services come from mongo in future they need to implement those services
 	ordersHandler.RegisterRoutes(router)
 
 	server := &http.Server{

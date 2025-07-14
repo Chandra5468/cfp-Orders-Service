@@ -1,31 +1,42 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log"
+	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/Chandra5468/cfp-Products-Service/internal/middleware"
-	"github.com/Chandra5468/cfp-Products-Service/internal/services/external/products"
+	"github.com/Chandra5468/cfp-Products-Service/internal/services/httpExternal/products"
 	"github.com/Chandra5468/cfp-Products-Service/internal/types"
 	"github.com/Chandra5468/cfp-Products-Service/internal/utils/responses"
+	pgrpc "github.com/Chandra5468/cfp-Products-Service/pkg/protobuf/genproto/products"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 )
 
 type Handler struct {
 	store    types.OrdersStore
 	mdbStore types.MongoComplaintStore
+	grpcConn *grpc.ClientConn
 }
 
-func NewHandler(store types.OrdersStore, mdbStore types.MongoComplaintStore) *Handler {
+func NewHandler(store types.OrdersStore, mdbStore types.MongoComplaintStore, conn *grpc.ClientConn) *Handler {
 	return &Handler{
 		store:    store,
 		mdbStore: mdbStore,
+		grpcConn: conn,
 	}
 }
 
 func (h *Handler) RegisterRoutes(router *chi.Mux) {
+	// Sample grpc call
+	router.Get("/v1/grpc", h.sampleGrpc)
 	// Create orders for a customer
 	router.Post("/v1/api/orders/create", h.createAOrder)
 
@@ -40,6 +51,26 @@ func (h *Handler) RegisterRoutes(router *chi.Mux) {
 	// ADMIN APIs (Restaurent, KITECHEN, etc... who updates order status)
 	router.Patch("/v1/api/admin/orders/update/status", h.updateOrderStatus)
 
+}
+
+func (h *Handler) sampleGrpc(w http.ResponseWriter, r *http.Request) {
+	defer h.grpcConn.Close()
+	cn := pgrpc.NewGreeterClient(h.grpcConn)
+
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
+
+	reply, err := cn.SayHello(ctx, &pgrpc.HelloRequest{
+		Name: "Chandra",
+	})
+
+	if err != nil {
+		responses.WriteJson(w, http.StatusInternalServerError, "error receiving response from grpc server")
+		slog.Error("grpc server error ", "message", fmt.Sprintf("Error is %s", err.Error()))
+		return
+	}
+	log.Println("This is data from grpc server ", reply.Message)
+	responses.WriteJson(w, http.StatusOK, reply.Message)
 }
 
 func (h *Handler) createAOrder(w http.ResponseWriter, r *http.Request) {
